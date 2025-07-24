@@ -137,6 +137,56 @@ def get_flares_LF(dat, weights, bins, n):
     return hist, out, np.sqrt(err)
 
 
+#Curti+2024 calibrations
+def curti_R2(x):
+    # x = 12+log(O/H)-8.69
+    #sigma_cal = 0.11
+    c0 = 0.4326
+    c1 = -1.0751
+    c2 = -5.1141
+    c3 = -5.5321
+    c4 = -2.3009
+    c5 = -0.2850
+    
+    return c0 + c1*x + c2*(x**2) + c3*(x**3) + c4*(x**4) + c5*(x**5)
+
+def curti_R3(x):
+    # x = 12+log(O/H)-8.69
+    #sigma_cal = 0.09
+    c0 = -0.2768
+    c1 = -3.1422
+    c2 = -2.73
+    c3 = -0.6003
+    
+    return c0 + c1*x + c2*(x**2) + c3*(x**3)
+
+def curti_O32(x):
+    #sigma_cal = 0.15
+    c0 = -0.6915
+    c1 = -2.6856
+    c2 = -1.1642
+    
+    return c0 + c1*x + c2*(x**2)
+
+def curti_Ne3O2(x):
+    #sigma=0.1 (average, since not given)
+    c0 = -1.632
+    c1 = -2.0606
+    c2 = -0.46088
+    
+    return c0 + c1*x + c2*(x**2)
+
+def curti_R(x):
+    # 0.47 * log10(R2) + 0.88 * log10(R3)
+    #sigma_cal = 0.058
+    c0 = -0.0478
+    c1 = -3.0707
+    c2 = -3.4164
+    c3 = -1.0034
+    c4 = -0.0379
+    
+    return c0 + c1*x + c2*(x**2) + c3*(x**3) + c4*(x**4)
+
 # Modified code from Lucie Rowlands
 # Sanders 2023 calibration functions
 def quadratic_solution(a, b, c):
@@ -180,7 +230,7 @@ def Z_to_Ne3O2(Z):
     return 10**((Z - 8) * (-0.998) - 0.386)
 
 
-def compute_metallicity_dust_correction(galaxy, Sanders=True, Avdust=False, Balmerdust=True, Av=None):
+def compute_metallicity_dust_correction(galaxy, Sanders=True, Avdust=False, Balmerdust=True, Av=None, Curti=False):
     """Computes the metallicity for a given galaxy using
         balmer corrected fluxes for line ratios.
         Using OIII]5007, [OIII]4959, [OII]3727,29, Hbeta
@@ -207,6 +257,7 @@ def compute_metallicity_dust_correction(galaxy, Sanders=True, Avdust=False, Balm
         galaxy_corr['Hbeta'] = calc_line_corr_from_Av(galaxy['Hbeta'], 4861.32 * Angstrom, Av, slope=0)
         galaxy_corr['[OII]3727,29'] = calc_line_corr_from_Av(galaxy['[OII]3727,29'], np.mean([3726.03, 3728.81]) * Angstrom, Av, slope=0)
         O32 = galaxy_corr['[OIII]5007']/galaxy_corr['[OII]3727,29']
+        galaxy_corr['NeIII3869'] = calc_line_corr_from_Av(galaxy['NeIII3869'], 3868.76 * Angstrom, Av, slope=0)
     elif Balmerdust==True:
         Balmer_obs = galaxy['Halpha']/galaxy['Hbeta']
         
@@ -216,6 +267,7 @@ def compute_metallicity_dust_correction(galaxy, Sanders=True, Avdust=False, Balm
         galaxy_corr['Hbeta'] = calc_line_corr(galaxy['Hbeta'], 4861.32 * Angstrom, Balmer_obs)
         galaxy_corr['[OII]3727,29'] = calc_line_corr(galaxy['[OII]3727,29'], np.mean([3726.03, 3728.81]) * Angstrom, Balmer_obs)
         O32 = galaxy_corr['[OIII]5007']/galaxy_corr['[OII]3727,29']
+        galaxy_corr['NeIII3869'] = calc_line_corr(galaxy['NeIII3869'], 3868.76 * Angstrom, Balmer_obs)
 
     else:       
         galaxy_corr=galaxy
@@ -232,18 +284,38 @@ def compute_metallicity_dust_correction(galaxy, Sanders=True, Avdust=False, Balm
 
         #Which metallicity solution, upper or lower branch, should we use?
         #For each metallicity, calculate the corresponding O32 ratio, and then determine which is closest to the observed O32 ratio
-        if Z_high and Z_low:
+        if Z_high is not None and Z_low is not None:
             metallicity = Z_high if abs(np.log10(pred_O32_high) - np.log10(O32)) < abs(np.log10(pred_O32_low) - np.log10(O32)) else Z_low
             notes = 'R23, high branch' if metallicity == Z_high else 'R23, low branch'
             return metallicity.real, notes
         else:
             metallicity = Sanders23_O32(O3=galaxy_corr['[OIII]5007'], O2=galaxy_corr['[OII]3727,29'])
             notes = 'O32'
-            return metallicity, notes            
+            return metallicity, notes      
+        
     
     else:
-        logR23 = np.log10((galaxy_corr['[OIII]5007'] + galaxy_corr['[OIII]4959'] + galaxy_corr['[OII]3727,29']) / galaxy_corr['Hbeta'])
-        metallicity = R23_fit(logR23, O32, galaxy['HbetaEW'])
+        x = np.arange(-1.69, 1, 0.01)
+        
+        R2 = np.log10(galaxy_corr['[OII]3727,29']/galaxy_corr['Hbeta'])
+        R2_sigma = 0.11
+        R3 = np.log10(galaxy_corr['[OIII]5007']/galaxy_corr['Hbeta'])
+        R3_sigma = 0.09
+        O32 = np.log10(galaxy_corr['[OIII]5007']/galaxy_corr['[OII]3727,29'])
+        O32_sigma = 0.15
+        Ne3O2 = np.log10(galaxy_corr['NeIII3869']/galaxy_corr['[OII]3727,29'])
+        Ne3O2_sigma = 0.1 # Not given, average
+        Rhat = 0.47 * np.log10(galaxy_corr['[OII]3727,29']/galaxy_corr['Hbeta']) + 0.88*R3
+        Rhat_sigma = 0.058
+        
+        x_err = 0.01
+        
+        logL = (curti_R2(x)-R2)**2 / (R2_sigma**2 + x_err**2) + (curti_R3(x)-R3)**2 / (R3_sigma**2 + x_err**2)  + (curti_O32(x)-O32)**2 / (O32_sigma**2 + x_err**2) + (curti_Ne3O2(x)-Ne3O2)**2 / (Ne3O2_sigma**2 + x_err**2) + (curti_R(x)-Rhat)**2 / (Rhat_sigma**2 + x_err**2)
+        
+        arg_sol = np.argmin(logL)
+        
+        metallicity = x[arg_sol] + 8.69
+        notes = 'curti'
         
         return metallicity, notes
 
