@@ -1,5 +1,5 @@
-# line_ratio_reliability
-Repository containing scripts for the analysis of the reliability of line ratios in a clumpy high-redshift Universe
+# Interpreting nebular line ratios in the high-redshift Universe
+Repository containing scripts for the analysis of the interpretability of line ratios in a clumpy high-redshift Universe
 
 To use the notebooks you would need a working installation of [synthesizer](https://synthesizer-project.github.io/synthesizer/).
 
