@@ -1,0 +1,22 @@
+astropy==6.1.0
+cmasher==1.8.0
+-e git+ssh://git@github.com/synthesizer-project/synthesizer.git@2cd6ea5c4655207f932fc4886304153743e1f335#egg=cosmos_synthesizer
+dust_extinction==1.4
+emcee==3.1.6
+h5py==3.11.0
+ipykernel==6.29.4
+ipython==8.24.0
+lmfit==1.3.3
+matplotlib==3.8.4
+mpmath==1.3.0
+multiprocess==0.70.17
+numba==0.61.2
+numpy==2.2.3
+pandas==2.2.2
+schwimmbad==0.4.2
+scikit-learn==1.5.1
+scipy==1.15.2
+seaborn==0.13.2
+statsmodels==0.14.4
+uncertainties==3.2.2
+unyt==3.0.2
