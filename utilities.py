@@ -53,9 +53,6 @@ def weighted_quantile(values, quantiles, sample_weight=None,
 
 def binned_weighted_quantile(x,y,weights,bins,quantiles):
 
-    # if ~isinstance(quantiles,list):
-    #     quantiles = [quantiles]
-
     out = np.full((len(bins)-1,len(quantiles)),np.nan)
     for i,(b1,b2) in enumerate(zip(bins[:-1],bins[1:])):
         mask = (x >= b1) & (x < b2)
@@ -65,6 +62,12 @@ def binned_weighted_quantile(x,y,weights,bins,quantiles):
     return np.squeeze(out)
 
 def calc_line_corr(line_lum, line_lam, Balmer_obs, slope=0):
+    
+    """
+    Returns dust correction given luminosity, wavelength
+    and the Balmer decrement for the Calzetti attenuation
+    curve
+    """
     
     Halpha_lam  = 6562.80 * Angstrom
     Hbeta_lam   = 4861.32 * Angstrom
@@ -84,6 +87,11 @@ def calc_line_corr(line_lum, line_lam, Balmer_obs, slope=0):
 
 def get_EBV(Balmer_obs, lam1, lam2, intr_ratio, slope=0):
     
+    """
+    Returns E(B-V) given the observed Balmer ratios for
+    the Calzetti attenuation curve
+    """
+    
     acurve = Calzetti2000(slope=slope)
 
     k_1 = acurve.get_tau_at_lam(lam1)
@@ -95,6 +103,11 @@ def get_EBV(Balmer_obs, lam1, lam2, intr_ratio, slope=0):
 
 def get_EBV_from_Av(Av, slope=0):
     
+    """
+    Returns E(B-V) given the observed Av for
+    the Calzetti attenuation curve
+    """
+    
     acurve = Calzetti2000(slope=slope)
 
     k_v = acurve.get_tau_at_lam(5500 * Angstrom)
@@ -104,6 +117,11 @@ def get_EBV_from_Av(Av, slope=0):
     return EBV
 
 def calc_line_corr_from_Av(line_lum, line_lam, Av, slope=0):
+    
+    """
+    Returns dust correction given luminosity, wavelength
+    and the Av for the Calzetti attenuation curve
+    """
     
     acurve = Calzetti2000(slope=slope)
     k_line = acurve.get_tau_at_lam(lam=line_lam)
@@ -117,6 +135,12 @@ def calc_line_corr_from_Av(line_lum, line_lam, Av, slope=0):
     return y
 
 def get_flares_LF(dat, weights, bins, n):
+    
+    """
+    Helper function to return FLARES dsitribution
+    function provided the weight for the different
+    regions
+    """
 
     sims = np.arange(0,len(weights))
 
@@ -176,7 +200,7 @@ def curti_Ne3O2(x):
     
     return c0 + c1*x + c2*(x**2)
 
-def curti_R(x):
+def curti_Rhat(x):
     # 0.47 * log10(R2) + 0.88 * log10(R3)
     #sigma_cal = 0.058
     c0 = -0.0478
@@ -310,7 +334,7 @@ def compute_metallicity_dust_correction(galaxy, Sanders=True, Avdust=False, Balm
         
         x_err = 0.01
         
-        logL = (curti_R2(x)-R2)**2 / (R2_sigma**2 + x_err**2) + (curti_R3(x)-R3)**2 / (R3_sigma**2 + x_err**2)  + (curti_O32(x)-O32)**2 / (O32_sigma**2 + x_err**2) + (curti_Ne3O2(x)-Ne3O2)**2 / (Ne3O2_sigma**2 + x_err**2) + (curti_R(x)-Rhat)**2 / (Rhat_sigma**2 + x_err**2)
+        logL = (curti_R2(x)-R2)**2 / (R2_sigma**2 + x_err**2) + (curti_R3(x)-R3)**2 / (R3_sigma**2 + x_err**2)  + (curti_O32(x)-O32)**2 / (O32_sigma**2 + x_err**2) + (curti_Ne3O2(x)-Ne3O2)**2 / (Ne3O2_sigma**2 + x_err**2) + (curti_Rhat(x)-Rhat)**2 / (Rhat_sigma**2 + x_err**2)
         
         arg_sol = np.argmin(logL)
         
