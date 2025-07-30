@@ -1,5 +1,5 @@
 # Interpreting nebular line ratios in the high-redshift Universe
-Repository containing scripts for the analysis of the interpretability of line ratios in a clumpy high-redshift Universe
+Repository containing scripts for the analysis of the interpretability of line ratios in a clumpy high-redshift Universe used in the [paper](https://arxiv.org/abs/2507.20190).
 
 To use the notebooks you would need a working installation of [synthesizer](https://synthesizer-project.github.io/synthesizer/).
 
