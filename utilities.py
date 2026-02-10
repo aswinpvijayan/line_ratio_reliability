@@ -3,7 +3,7 @@ from unyt import Angstrom
 import cmath
 import warnings
 
-from synthesizer.emission_models.attenuation import Calzetti2000
+from synthesizer.emission_models.attenuation import Calzetti2000, PowerLaw
 from synthesizer.exceptions import InconsistentArguments
 
 #Weighted quantiles
@@ -61,7 +61,7 @@ def binned_weighted_quantile(x,y,weights,bins,quantiles):
 
     return np.squeeze(out)
 
-def calc_line_corr(line_lum, line_lam, Balmer_obs, slope=0):
+def calc_line_corr(line_lum, line_lam, Balmer_obs, curve='calzetti', slope=0):
     
     """
     Returns dust correction given luminosity, wavelength
@@ -73,10 +73,14 @@ def calc_line_corr(line_lum, line_lam, Balmer_obs, slope=0):
     Hbeta_lam   = 4861.32 * Angstrom
     intr_ratio = 2.79
     
-    acurve = Calzetti2000(slope=slope)
+    if curve=='calzetti':
+        acurve = Calzetti2000(slope=slope)
+    elif curve=='powerlaw':
+        acurve = PowerLaw()
+    
     k_line = acurve.get_tau_at_lam(lam=line_lam)
 
-    EBV = get_EBV(Balmer_obs, Halpha_lam, Hbeta_lam, intr_ratio, slope)
+    EBV = get_EBV(Balmer_obs, Halpha_lam, Hbeta_lam, intr_ratio, curve, slope)
     
     A_line = EBV * k_line
 
@@ -85,14 +89,17 @@ def calc_line_corr(line_lum, line_lam, Balmer_obs, slope=0):
     return y
 
 
-def get_EBV(Balmer_obs, lam1, lam2, intr_ratio, slope=0):
+def get_EBV(Balmer_obs, lam1, lam2, intr_ratio, curve='calzetti', slope=0):
     
     """
     Returns E(B-V) given the observed Balmer ratios for
     the Calzetti attenuation curve
     """
     
-    acurve = Calzetti2000(slope=slope)
+    if curve=='calzetti':
+        acurve = Calzetti2000(slope=slope)
+    elif curve=='powerlaw':
+        acurve = PowerLaw()
 
     k_1 = acurve.get_tau_at_lam(lam1)
     k_2 = acurve.get_tau_at_lam(lam2)
@@ -101,14 +108,17 @@ def get_EBV(Balmer_obs, lam1, lam2, intr_ratio, slope=0):
 
     return EBV
 
-def get_EBV_from_Av(Av, slope=0):
+def get_EBV_from_Av(Av, curve='calzetti', slope=0):
     
     """
     Returns E(B-V) given the observed Av for
     the Calzetti attenuation curve
     """
     
-    acurve = Calzetti2000(slope=slope)
+    if curve=='calzetti':
+        acurve = Calzetti2000(slope=slope)
+    elif curve=='powerlaw':
+        acurve = PowerLaw()
 
     k_v = acurve.get_tau_at_lam(5500 * Angstrom)
 
@@ -116,17 +126,21 @@ def get_EBV_from_Av(Av, slope=0):
     
     return EBV
 
-def calc_line_corr_from_Av(line_lum, line_lam, Av, slope=0):
+def calc_line_corr_from_Av(line_lum, line_lam, Av, curve='calzetti', slope=0):
     
     """
     Returns dust correction given luminosity, wavelength
     and the Av for the Calzetti attenuation curve
     """
     
-    acurve = Calzetti2000(slope=slope)
+    if curve=='calzetti':
+        acurve = Calzetti2000(slope=slope)
+    elif curve=='powerlaw':
+        acurve = PowerLaw()
+        
     k_line = acurve.get_tau_at_lam(lam=line_lam)
 
-    EBV = get_EBV_from_Av(Av, slope=slope)
+    EBV = get_EBV_from_Av(Av, curve=curve, slope=slope)
     
     A_line = EBV * k_line
 
@@ -254,20 +268,35 @@ def Z_to_Ne3O2(Z):
     return 10**((Z - 8) * (-0.998) - 0.386)
 
 
-def compute_metallicity_dust_correction(galaxy, Sanders=True, Avdust=False, Balmerdust=True, Av=None, Curti=False):
+def compute_metallicity_dust_correction(
+    galaxy,
+    Sanders=True,
+    Avdust=False,
+    Balmerdust=True,
+    Av=None,
+    Curti=False
+):
     """Computes the metallicity for a given galaxy using
         balmer corrected fluxes for line ratios.
         Using OIII]5007, [OIII]4959, [OII]3727,29, Hbeta
+        
+    Args:
+        galaxy (dict): A dictionary containing the line luminosities and other properties of the galaxy.
+        Sanders (bool): Whether to use the Sanders 2023 calibrations or the Curti+2024 calibrations. Default is True.
+        Avdust (bool): Whether to use Av dust correction. Default is False.
+        Balmerdust (bool): Whether to use Balmer dust correction. Default is True.
+        Av (float): The Av value to use for dust correction if Avdust is True. If None, will try to get from galaxy dictionary.
+        Curti (bool): Whether to use Curti+2024 calibrations instead of Sanders 2023 calibrations. Default is False.
+        
+    Returns:
+        metallicity (float): The metallicity of the galaxy.
+        notes (str): A string describing the method used to calculate the metallicity.
     """
     metallicity, notes = None, ""
     
     if (Avdust==True) and (Balmerdust==True):
         InconsistentArguments('Avdust and Balmerdust cannot both be True')     
    
-    # R23 = galaxy['R23']
-    # R3 = galaxy['R3']
-    # Ne3O2 = galaxy['Ne3O2']
-    # O32 = galaxy['O32']
     if Avdust==True:
         if Av is None:
             try:
@@ -354,7 +383,6 @@ def compute_metallicity_nodust_correction(galaxy):
     
     Ne3O2 = galaxy['Ne3O2']
 
-    
     #When we don't have H-alpha, use un-corrected catalogue, and use only R3 and Ne3O2, since they are closer in wavelength so attenuation is less of a concern
    
     Z_high, Z_low = Sanders23_O3(galaxy['[OIII]5007'], galaxy['Hbeta'])
@@ -376,6 +404,7 @@ def compute_metallicity_nodust_correction(galaxy):
 
 # Nakajima 2023
 def R23_fit(logR23, O32, hbew):
+    """Convert R23 and O32 to metallicity using the Nakajima 2023 calibrations, which depend on the Hbeta equivalent width (hbew)"""
 
     x = np.arange(-2., 0.5, 10000)
 
@@ -424,6 +453,7 @@ def R23_fit(logR23, O32, hbew):
                 
 
 def O32_exp(x, hbew=100, all=False):
+    """Convert metallicity to O32 using the Nakajima 2023 calibrations, which depend on the Hbeta equivalent width (hbew)"""
 
     if all:
         c0, c1, c2 =  -0.693, -2.722, -1.201
@@ -431,7 +461,6 @@ def O32_exp(x, hbew=100, all=False):
         
         return expr
         
-
     if 100<hbew<200:
         c0, c1, c2 =  -0.693, -2.722, -1.201
         expr = c0 + c1 * x + c2 * x*x
